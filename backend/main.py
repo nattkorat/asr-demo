@@ -12,9 +12,9 @@ import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from backend.core.config import settings
@@ -29,6 +29,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+STATIC_DIR   = FRONTEND_DIR / "static"
 
 
 # ── Lifespan: load model once before first request ────────────────────────────
@@ -64,15 +65,13 @@ app.include_router(ws_router)     # WS  /ws/asr
 
 
 # ── Frontend ──────────────────────────────────────────────────────────────────
-# Inject MODEL_NAME from config so the UI title always matches .env
-# without needing a template engine.
+# Inject MODEL_NAME so the UI title always matches .env without a template engine.
 
 def _render_index() -> str:
     html_path = FRONTEND_DIR / "index.html"
     if not html_path.exists():
         return "<h1>frontend/index.html not found</h1>"
     html = html_path.read_text(encoding="utf-8")
-    # Replace the placeholder the frontend uses for the model name
     html = html.replace("{{MODEL_NAME}}", settings.MODEL_NAME)
     return html
 
@@ -82,7 +81,39 @@ async def index():
     return HTMLResponse(_render_index())
 
 
-# Mount optional static assets (css, js, images) under /static
-_static_dir = FRONTEND_DIR / "static"
-if _static_dir.exists():
-    app.mount("/static", StaticFiles(directory=str(_static_dir)), name="static")
+# ── Static assets ─────────────────────────────────────────────────────────────
+# Serve frontend/static/ at /static — this is where the logo lives.
+# Always create the directory so the mount never fails on a fresh clone.
+
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
+# ── Logo upload ───────────────────────────────────────────────────────────────
+# POST /api/upload-logo  (multipart, field name: "file")
+# Saves the logo to frontend/static/ so it is immediately served at /static/logo.<ext>
+# Supported formats: PNG, JPG, SVG, WEBP, ICO
+#
+# Quick test:
+#   curl -X POST http://localhost:7860/api/upload-logo \
+#        -F "file=@/path/to/your/logo.png"
+#
+# Then update the <img src="..."> in index.html to /static/logo.<ext> if needed.
+# (PNG is already the default.)
+
+_ALLOWED_LOGO_EXT = {".png", ".jpg", ".jpeg", ".svg", ".webp", ".ico"}
+
+
+@app.post("/api/upload-logo", tags=["Admin"])
+async def upload_logo(file: UploadFile = File(...)):
+    ext = Path(file.filename or "").suffix.lower()
+    if ext not in _ALLOWED_LOGO_EXT:
+        raise HTTPException(
+            status_code=415,
+            detail=f"Unsupported format '{ext}'. Allowed: {sorted(_ALLOWED_LOGO_EXT)}",
+        )
+    data = await file.read()
+    dest = STATIC_DIR / f"logo{ext}"
+    dest.write_bytes(data)
+    logger.info("Logo saved → %s  (%d bytes)", dest, len(data))
+    return JSONResponse({"saved": f"/static/logo{ext}", "bytes": len(data)})
