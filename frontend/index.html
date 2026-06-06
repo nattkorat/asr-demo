@@ -1,0 +1,597 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Khmer ASR Demo</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:ital,wght@0,400;0,500;1,400&family=Noto+Sans+Khmer:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #0b0f0e;
+      --surface:  #111615;
+      --raised:   #161d1b;
+      --border:   #1d2724;
+      --accent:   #00e5a0;
+      --accent2:  #00b3ff;
+      --danger:   #ff4d6d;
+      --text:     #d0e8e1;
+      --muted:    #44625c;
+      --mono:     'DM Mono', monospace;
+      --khmer:    'Noto Sans Khmer', sans-serif;
+    }
+
+    html, body {
+      min-height: 100%;
+      background: var(--bg);
+      color: var(--text);
+      font-family: var(--mono);
+    }
+
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: 0.35;
+      pointer-events: none;
+    }
+
+    .page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: flex-start;
+      padding: 48px 16px 64px;
+      gap: 24px;
+    }
+
+    /* ── Header ── */
+    .page-header {
+      text-align: center;
+    }
+    .page-label {
+      font-size: 10px;
+      letter-spacing: .18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: 6px;
+    }
+    .page-title {
+      font-family: var(--khmer);
+      font-size: 28px;
+      font-weight: 600;
+      color: #e6f4ef;
+    }
+    .page-sub {
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+      letter-spacing: .04em;
+    }
+
+    /* ── Tab switcher ── */
+    .tabs {
+      display: flex;
+      gap: 4px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 4px;
+    }
+    .tab {
+      padding: 8px 24px;
+      border-radius: 7px;
+      font-family: var(--mono);
+      font-size: 11px;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--muted);
+      transition: background .2s, color .2s;
+    }
+    .tab.active {
+      background: var(--raised);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+
+    /* ── Card ── */
+    .card {
+      position: relative;
+      width: min(640px, 96vw);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 36px 40px 40px;
+      box-shadow: 0 0 60px rgba(0,229,160,.04), 0 24px 64px rgba(0,0,0,.55);
+    }
+    .card::before {
+      content: '';
+      position: absolute;
+      top: -1px; left: 12%; right: 12%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, var(--accent), transparent);
+    }
+
+    .panel { display: none; }
+    .panel.active { display: flex; flex-direction: column; gap: 20px; }
+
+    /* ── Status row ── */
+    .status-row { display: flex; align-items: center; gap: 8px; min-height: 20px; }
+    .dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: var(--muted); flex-shrink: 0;
+      transition: background .3s;
+    }
+    .dot.recording { background: var(--danger); box-shadow: 0 0 8px var(--danger); animation: blink 1.2s ease-in-out infinite; }
+    .dot.connected { background: var(--accent); box-shadow: 0 0 8px var(--accent); animation: none; }
+    .dot.success    { background: var(--accent2); box-shadow: 0 0 8px var(--accent2); animation: none; }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+    .status-txt { font-size: 11px; color: var(--muted); letter-spacing: .05em; }
+
+    /* ── Waveform ── */
+    .waveform-wrap {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      height: 60px;
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    #waveform { display: flex; align-items: center; gap: 3px; height: 100%; padding: 8px 14px; }
+    .bar {
+      width: 3px; border-radius: 2px;
+      background: var(--accent);
+      opacity: .15; height: 4px;
+      transition: height .05s, opacity .05s;
+      flex-shrink: 0;
+    }
+    .bar.lit { opacity: .85; }
+
+    /* ── Transcript box ── */
+    .tx-wrap {
+      position: relative;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      min-height: 130px;
+      max-height: 260px;
+      overflow-y: auto;
+    }
+    .tx-wrap::-webkit-scrollbar { width: 4px; }
+    .tx-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .tx-placeholder {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      font-size: 11px; color: var(--muted); letter-spacing: .04em; white-space: nowrap;
+    }
+    #live-transcript, #rest-transcript {
+      font-family: var(--khmer);
+      font-size: 17px; line-height: 1.85;
+      color: var(--text); word-break: break-word;
+    }
+    .interim { color: var(--muted); font-style: italic; }
+
+    /* copy btn */
+    .copy-btn {
+      position: absolute; top: 9px; right: 10px;
+      background: none; border: 1px solid var(--border); border-radius: 6px;
+      color: var(--muted); font-family: var(--mono); font-size: 10px;
+      padding: 3px 10px; cursor: pointer; letter-spacing: .06em;
+      opacity: 0; transition: opacity .2s, color .2s, border-color .2s;
+    }
+    .tx-wrap:hover .copy-btn { opacity: 1; }
+    .copy-btn:hover { color: var(--accent); border-color: var(--accent); }
+
+    /* ── Button row ── */
+    .btn-row { display: flex; align-items: center; gap: 12px; }
+
+    .btn-primary {
+      padding: 13px 32px;
+      border: none; border-radius: 10px;
+      background: var(--accent); color: #000;
+      font-family: var(--mono); font-size: 12px; font-weight: 500;
+      letter-spacing: .08em; cursor: pointer;
+      transition: background .2s, box-shadow .2s, transform .1s;
+    }
+    .btn-primary:hover { background: #00f2ab; box-shadow: 0 0 22px rgba(0,229,160,.35); }
+    .btn-primary:active { transform: scale(.97); }
+    .btn-primary.danger { background: var(--danger); }
+    .btn-primary.danger:hover { background: #ff6b85; box-shadow: 0 0 22px rgba(255,77,109,.35); }
+    .btn-primary.blue { background: var(--accent2); }
+    .btn-primary.blue:hover { box-shadow: 0 0 22px rgba(0,179,255,.35); }
+    .btn-primary:disabled { opacity: .4; cursor: not-allowed; transform: none; box-shadow: none; }
+
+    .btn-ghost {
+      background: none; border: 1px solid var(--border); border-radius: 8px;
+      color: var(--muted); font-family: var(--mono); font-size: 11px;
+      letter-spacing: .06em; padding: 9px 18px; cursor: pointer;
+      transition: border-color .2s, color .2s;
+    }
+    .btn-ghost:hover { border-color: var(--muted); color: var(--text); }
+
+    #timer { margin-left: auto; font-size: 12px; color: var(--muted); letter-spacing: .1em; font-variant-numeric: tabular-nums; min-width: 42px; text-align: right; }
+
+    /* ── Upload panel ── */
+    .drop-zone {
+      background: var(--bg);
+      border: 1px dashed var(--border);
+      border-radius: 10px;
+      padding: 32px 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color .2s, background .2s;
+    }
+    .drop-zone:hover, .drop-zone.drag-over {
+      border-color: var(--accent2);
+      background: rgba(0,179,255,.04);
+    }
+    .drop-icon { font-size: 28px; margin-bottom: 10px; }
+    .drop-label { font-size: 12px; color: var(--muted); letter-spacing: .04em; }
+    .drop-label span { color: var(--accent2); cursor: pointer; }
+    .drop-formats { margin-top: 6px; font-size: 10px; color: var(--muted); letter-spacing: .06em; }
+    #file-input { display: none; }
+
+    .file-info {
+      display: flex; align-items: center; justify-content: space-between;
+      background: var(--raised); border: 1px solid var(--border);
+      border-radius: 8px; padding: 10px 16px;
+      font-size: 11px; letter-spacing: .04em;
+    }
+    .file-name { color: var(--text); }
+    .file-size { color: var(--muted); }
+
+    /* spinner */
+    .spinner {
+      display: inline-block; width: 12px; height: 12px;
+      border: 2px solid rgba(0,0,0,.3); border-top-color: #000;
+      border-radius: 50%; animation: spin .6s linear infinite;
+      margin-right: 6px; vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Info badges ── */
+    .badge {
+      display: inline-flex; align-items: center; gap: 5px;
+      background: var(--raised); border: 1px solid var(--border);
+      border-radius: 20px; padding: 3px 10px;
+      font-size: 10px; letter-spacing: .06em; color: var(--muted);
+    }
+    .badge-dot { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); }
+    .badge.gpu .badge-dot { background: #a78bfa; }
+    .badge.cpu .badge-dot { background: var(--muted); }
+  </style>
+</head>
+<body>
+<div class="page">
+
+  <div class="page-header">
+    <div class="page-label">Speech Recognition Demo</div>
+    <div class="page-title">{{MODEL_NAME}}</div>
+    <div class="page-sub">Live streaming · File upload · WebSocket + REST</div>
+    <div id="badge-row" style="margin-top:10px;display:flex;align-items:center;justify-content:center;gap:8px;flex-wrap:wrap;"></div>
+  </div>
+
+  <!-- Tab switcher -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('live')">🎙 Live</button>
+    <button class="tab"        onclick="switchTab('upload')">📁 Upload</button>
+  </div>
+
+  <!-- ── Card ── -->
+  <div class="card">
+
+    <!-- LIVE PANEL -->
+    <div class="panel active" id="panel-live">
+      <div class="status-row">
+        <div class="dot" id="live-dot"></div>
+        <span class="status-txt" id="live-status">idle</span>
+      </div>
+
+      <div class="waveform-wrap">
+        <div id="waveform"></div>
+      </div>
+
+      <div class="tx-wrap">
+        <span class="tx-placeholder" id="live-placeholder">Press record to begin…</span>
+        <div id="live-transcript"></div>
+        <button class="copy-btn" onclick="copyText('live-transcript')">copy</button>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary" id="record-btn" onclick="toggleRecording()">● REC</button>
+        <button class="btn-ghost"   onclick="clearLive()">clear</button>
+        <span id="timer">00:00</span>
+      </div>
+    </div>
+
+    <!-- UPLOAD PANEL -->
+    <div class="panel" id="panel-upload">
+      <div class="status-row">
+        <div class="dot" id="rest-dot"></div>
+        <span class="status-txt" id="rest-status">idle</span>
+      </div>
+
+      <!-- Drop zone -->
+      <div class="drop-zone" id="drop-zone"
+           onclick="document.getElementById('file-input').click()"
+           ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+        <div class="drop-icon">🎵</div>
+        <div class="drop-label">Drop audio file here or <span>browse</span></div>
+        <div class="drop-formats">WAV · MP3 · OGG · FLAC · AAC · WEBM · M4A</div>
+      </div>
+      <input type="file" id="file-input" accept="audio/*,video/webm" onchange="onFileSelect(event)"/>
+
+      <!-- Selected file info (hidden until file chosen) -->
+      <div class="file-info" id="file-info" style="display:none">
+        <span class="file-name" id="file-name">—</span>
+        <span class="file-size" id="file-size">—</span>
+      </div>
+
+      <div class="tx-wrap">
+        <span class="tx-placeholder" id="rest-placeholder">Transcript will appear here…</span>
+        <div id="rest-transcript"></div>
+        <button class="copy-btn" onclick="copyText('rest-transcript')">copy</button>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn-primary blue" id="transcribe-btn" onclick="transcribeFile()" disabled>
+          Transcribe
+        </button>
+        <button class="btn-ghost" onclick="clearUpload()">clear</button>
+      </div>
+    </div>
+
+  </div><!-- /card -->
+</div><!-- /page -->
+
+<script>
+// ── Config ────────────────────────────────────────────────────────────────────
+const WS_URL      = `ws://${location.host}/ws/asr`;
+const REST_URL    = `${location.origin}/api/transcribe`;
+const NUM_BARS    = 52;
+const SAMPLE_RATE = 16000;
+const CHUNK_MS    = 250;
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let ws, mediaStream, audioCtx, processor, analyser;
+let isRecording  = false;
+let elapsed      = 0;
+let timerInterval, animFrame;
+let finalText    = '';
+let selectedFile = null;
+
+// ── Build waveform ────────────────────────────────────────────────────────────
+const waveform = document.getElementById('waveform');
+for (let i = 0; i < NUM_BARS; i++) {
+  const b = document.createElement('div');
+  b.className = 'bar';
+  waveform.appendChild(b);
+}
+const bars = [...waveform.querySelectorAll('.bar')];
+
+// ── Tab switch ────────────────────────────────────────────────────────────────
+function switchTab(name) {
+  document.querySelectorAll('.tab').forEach((t, i) =>
+    t.classList.toggle('active', ['live','upload'][i] === name));
+  document.querySelectorAll('.panel').forEach((p, i) =>
+    p.classList.toggle('active', ['panel-live','panel-upload'][i] === `panel-${name}`));
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+function setLiveStatus(state, msg) {
+  document.getElementById('live-dot').className = 'dot ' + state;
+  document.getElementById('live-status').textContent = msg;
+}
+function setRestStatus(state, msg) {
+  document.getElementById('rest-dot').className = 'dot ' + state;
+  document.getElementById('rest-status').textContent = msg;
+}
+function fmtTime(s) {
+  return `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`;
+}
+function fmtSize(b) {
+  return b > 1048576 ? (b/1048576).toFixed(1)+' MB' : (b/1024).toFixed(0)+' KB';
+}
+function esc(s) {
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+function showLive(text, interim = '') {
+  const el = document.getElementById('live-transcript');
+  document.getElementById('live-placeholder').style.display = text||interim ? 'none' : '';
+  el.innerHTML =
+    (text   ? `<span>${esc(text)}</span>` : '') +
+    (interim ? `<span class="interim"> ${esc(interim)}</span>` : '');
+  el.parentElement.scrollTop = el.parentElement.scrollHeight;
+}
+function copyText(id) {
+  const txt = document.getElementById(id).textContent.trim();
+  if (!txt) return;
+  navigator.clipboard.writeText(txt).then(() => {
+    event.target.textContent = 'copied!';
+    setTimeout(() => event.target.textContent = 'copy', 1500);
+  });
+}
+function clearLive()   { finalText = ''; showLive(''); document.getElementById('live-placeholder').style.display = ''; }
+function clearUpload() {
+  document.getElementById('rest-transcript').textContent = '';
+  document.getElementById('rest-placeholder').style.display = '';
+  setRestStatus('', 'idle');
+}
+
+// ── Waveform animation ────────────────────────────────────────────────────────
+function animWave() {
+  if (!analyser) return;
+  const data = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(data);
+  const step = Math.floor(data.length / NUM_BARS);
+  bars.forEach((b, i) => {
+    const v = data[i * step] / 255;
+    b.style.height = Math.max(4, v * 44) + 'px';
+    b.className = 'bar' + (v > 0.05 ? ' lit' : '');
+  });
+  animFrame = requestAnimationFrame(animWave);
+}
+function resetWave() {
+  cancelAnimationFrame(animFrame);
+  bars.forEach(b => { b.style.height = '4px'; b.className = 'bar'; });
+}
+
+// ── PCM16 conversion ──────────────────────────────────────────────────────────
+function float32ToPCM16(f32) {
+  const buf = new ArrayBuffer(f32.length * 2);
+  const view = new DataView(buf);
+  f32.forEach((v, i) => {
+    const s = Math.max(-1, Math.min(1, v));
+    view.setInt16(i*2, s < 0 ? s*0x8000 : s*0x7FFF, true);
+  });
+  return buf;
+}
+
+// ── WebSocket ─────────────────────────────────────────────────────────────────
+function openWS() {
+  ws = new WebSocket(WS_URL);
+  ws.binaryType = 'arraybuffer';
+  ws.onopen    = () => setLiveStatus('connected', 'connected — recording…');
+  ws.onerror   = () => setLiveStatus('', 'websocket error');
+  ws.onclose   = () => { if (isRecording) stopRecording(); };
+  ws.onmessage = (e) => {
+    try {
+      const msg = JSON.parse(e.data);
+      if (msg.type === 'final' || msg.transcript) {
+        finalText += (finalText ? ' ' : '') + (msg.transcript || msg.text || '');
+        showLive(finalText);
+      } else if (msg.type === 'partial' || msg.partial) {
+        showLive(finalText, msg.partial || msg.text || '');
+      } else if (msg.type === 'error') {
+        setLiveStatus('', 'error: ' + msg.message);
+      }
+    } catch {
+      finalText += (finalText ? ' ' : '') + e.data;
+      showLive(finalText);
+    }
+  };
+}
+
+// ── Recording ─────────────────────────────────────────────────────────────────
+async function startRecording() {
+  try {
+    mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  } catch {
+    setLiveStatus('', 'mic access denied'); return;
+  }
+
+  audioCtx = new AudioContext({ sampleRate: SAMPLE_RATE });
+  analyser = audioCtx.createAnalyser(); analyser.fftSize = 256;
+  const src = audioCtx.createMediaStreamSource(mediaStream);
+  src.connect(analyser);
+
+  const bufSize = Math.floor(SAMPLE_RATE * CHUNK_MS / 1000);
+  processor = audioCtx.createScriptProcessor(bufSize, 1, 1);
+  src.connect(processor);
+  processor.connect(audioCtx.destination);
+  processor.onaudioprocess = (e) => {
+    if (!isRecording || !ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(float32ToPCM16(e.inputBuffer.getChannelData(0)));
+  };
+
+  openWS();
+  isRecording = true;
+  const btn = document.getElementById('record-btn');
+  btn.textContent = '■ STOP'; btn.classList.add('danger');
+  setLiveStatus('recording', 'recording…');
+  animWave();
+  elapsed = 0;
+  timerInterval = setInterval(() => { elapsed++; document.getElementById('timer').textContent = fmtTime(elapsed); }, 1000);
+}
+
+function stopRecording() {
+  isRecording = false;
+  processor?.disconnect(); processor = null;
+  audioCtx?.close();       audioCtx = null;
+  mediaStream?.getTracks().forEach(t => t.stop()); mediaStream = null;
+  if (ws?.readyState === WebSocket.OPEN) ws.close();
+  clearInterval(timerInterval); resetWave();
+  const btn = document.getElementById('record-btn');
+  btn.textContent = '● REC'; btn.classList.remove('danger');
+  setLiveStatus('', 'idle — recording stopped');
+}
+
+function toggleRecording() { isRecording ? stopRecording() : startRecording(); }
+
+// ── File upload ───────────────────────────────────────────────────────────────
+function onFileSelect(e)  { setFile(e.target.files[0]); }
+function onDragOver(e)    { e.preventDefault(); document.getElementById('drop-zone').classList.add('drag-over'); }
+function onDragLeave(e)   { document.getElementById('drop-zone').classList.remove('drag-over'); }
+function onDrop(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').classList.remove('drag-over');
+  setFile(e.dataTransfer.files[0]);
+}
+
+function setFile(file) {
+  if (!file) return;
+  selectedFile = file;
+  document.getElementById('file-info').style.display = 'flex';
+  document.getElementById('file-name').textContent = file.name;
+  document.getElementById('file-size').textContent = fmtSize(file.size);
+  document.getElementById('transcribe-btn').disabled = false;
+  setRestStatus('', 'file ready');
+}
+
+async function transcribeFile() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('transcribe-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Transcribing…';
+  setRestStatus('', 'sending…');
+
+  const form = new FormData();
+  form.append('file', selectedFile);
+
+  try {
+    const res  = await fetch(REST_URL, { method: 'POST', body: form });
+    const data = await res.json();
+
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+
+    const tx = document.getElementById('rest-transcript');
+    tx.textContent = data.transcript;
+    document.getElementById('rest-placeholder').style.display = 'none';
+    setRestStatus('success', `done · ${data.duration_sec}s audio`);
+  } catch (err) {
+    setRestStatus('', 'error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Transcribe';
+  }
+}
+
+// ── Fetch health info and render badges ──────────────────────────────────────
+(async () => {
+  try {
+    const res  = await fetch('/api/health');
+    const data = await res.json();
+    const row  = document.getElementById('badge-row');
+    const isGpu = data.device?.startsWith('cuda');
+    row.innerHTML = `
+      <span class="badge ${isGpu ? 'gpu' : 'cpu'}">
+        <span class="badge-dot"></span>${data.device ?? 'unknown'}
+      </span>
+      <span class="badge">
+        <span class="badge-dot"></span>${data.model_mode ?? ''} · ${data.sample_rate ?? ''}Hz
+      </span>`;
+  } catch { /* server not ready yet */ }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,19 @@
+# Web framework
+fastapi>=0.111.0
+uvicorn[standard]>=0.29.0
+python-multipart>=0.0.9       # required for file upload (UploadFile)
+
+# Settings management
+pydantic-settings>=2.2.0
+
+# ML
+torch>=2.2.0
+transformers>=4.40.0
+numpy>=1.26.0
+
+# LoRA support (only needed when MODEL_MODE=lora)
+peft>=0.10.0
+
+# ffmpeg must be installed on the system:
+#   Ubuntu/Debian: sudo apt install ffmpeg
+#   macOS:         brew install ffmpeg
