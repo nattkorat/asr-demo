@@ -389,6 +389,85 @@
       margin-right: 6px; vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* ── Mode toggle ────────────────────────────────────────────────────────── */
+    .mode-toggle {
+      display: flex; gap: 4px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 3px;
+    }
+    .mode-btn {
+      flex: 1; padding: 7px 14px;
+      border: none; border-radius: 6px;
+      font-family: var(--mono); font-size: 10px;
+      letter-spacing: .08em; text-transform: uppercase;
+      cursor: pointer; background: none; color: var(--muted);
+      transition: background .2s, color .2s;
+      white-space: nowrap;
+    }
+    .mode-btn.active {
+      background: var(--surface);
+      color: var(--text);
+      border: 1px solid var(--border);
+      box-shadow: 0 1px 4px rgba(0,0,0,.15);
+    }
+
+    /* ── Speaker colour palette (8 speakers max) ────────────────────────────── */
+    :root {
+      --spk0: #00e5a0; --spk0-bg: rgba(0,229,160,.08);
+      --spk1: #00b3ff; --spk1-bg: rgba(0,179,255,.08);
+      --spk2: #ff7b54; --spk2-bg: rgba(255,123,84,.08);
+      --spk3: #a78bfa; --spk3-bg: rgba(167,139,250,.08);
+      --spk4: #fbbf24; --spk4-bg: rgba(251,191,36,.08);
+      --spk5: #f472b6; --spk5-bg: rgba(244,114,182,.08);
+      --spk6: #34d399; --spk6-bg: rgba(52,211,153,.08);
+      --spk7: #60a5fa; --spk7-bg: rgba(96,165,250,.08);
+    }
+
+    /* ── Diarize result area ─────────────────────────────────────────────────── */
+    .diarize-wrap {
+      display: flex; flex-direction: column; gap: 10px;
+      max-height: 380px; overflow-y: auto;
+      padding-right: 4px;
+    }
+    .diarize-wrap::-webkit-scrollbar { width: 4px; }
+    .diarize-wrap::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+
+    .spk-block {
+      border-radius: 10px;
+      border-left: 3px solid var(--spk-color, var(--accent));
+      background: var(--spk-bg, rgba(0,229,160,.08));
+      padding: 12px 16px;
+      cursor: pointer;
+      transition: opacity .2s, box-shadow .2s;
+    }
+    .spk-block:hover { box-shadow: 0 0 0 1px var(--spk-color, var(--accent)); }
+    .spk-block.playing { box-shadow: 0 0 0 2px var(--spk-color, var(--accent)); }
+    .spk-block.dimmed  { opacity: .4; }
+
+    .spk-header {
+      display: flex; align-items: center; gap: 8px;
+      margin-bottom: 6px;
+    }
+    .spk-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      background: var(--spk-color, var(--accent));
+      flex-shrink: 0;
+    }
+    .spk-label {
+      font-size: 10px; letter-spacing: .1em; text-transform: uppercase;
+      color: var(--spk-color, var(--accent)); font-weight: 500;
+    }
+    .spk-time {
+      margin-left: auto; font-size: 10px; color: var(--muted);
+      letter-spacing: .04em; font-variant-numeric: tabular-nums;
+    }
+    .spk-text {
+      font-family: var(--khmer);
+      font-size: 16px; line-height: 1.8;
+      color: var(--text); word-break: break-word;
+    }
 
     /* ── Audio player (upload panel) ────────────────────────────────────────── */
     .audio-player {
@@ -584,7 +663,7 @@
       <div class="panel active" id="panel-live">
         <div class="status-row">
           <div class="dot" id="live-dot"></div>
-          <span class="status-txt" id="live-status">Press record to begin</span>
+          <span class="status-txt" id="live-status">idle — press record to begin</span>
         </div>
 
         <div class="waveform-wrap">
@@ -593,7 +672,7 @@
 
         <div class="tx-wrap">
           <span class="tx-placeholder" id="live-placeholder">Transcript appears here…</span>
-          <span id="live-transcript"></span>
+          <div id="live-transcript"></div>
           <button class="copy-btn" onclick="copyText('live-transcript', event)">copy</button>
         </div>
 
@@ -608,7 +687,14 @@
       <div class="panel" id="panel-upload">
         <div class="status-row">
           <div class="dot" id="rest-dot"></div>
-          <span class="status-txt" id="rest-status">Select a file to transcribe</span>
+          <span class="status-txt" id="rest-status">idle — select a file to begin</span>
+        </div>
+
+        <!-- Mode toggle: Transcribe vs Diarize -->
+        <div class="mode-toggle" id="mode-toggle">
+          <button class="mode-btn active" id="mode-asr"    onclick="setMode('asr')">🗒 Transcribe</button>
+          <button class="mode-btn"        id="mode-diarize" onclick="setMode('diarize')"
+                  id="mode-diarize-btn">👥 Diarize</button>
         </div>
 
         <div class="drop-zone" id="drop-zone"
@@ -625,7 +711,7 @@
           <span class="file-size" id="file-size">—</span>
         </div>
 
-        <!-- Audio player + waveform (shown after file is selected) -->
+        <!-- Audio player + waveform -->
         <div class="audio-player" id="audio-player" style="display:none">
           <div class="player-wave-wrap" id="wave-wrap" onclick="seekFromClick(event)">
             <canvas id="upload-canvas"></canvas>
@@ -638,14 +724,18 @@
           </div>
         </div>
 
-        <div class="tx-wrap">
+        <!-- ASR transcript (plain mode) -->
+        <div class="tx-wrap" id="asr-result-wrap">
           <span class="tx-placeholder" id="rest-placeholder">Transcript will appear here…</span>
           <div id="rest-transcript"></div>
           <button class="copy-btn" onclick="copyText('rest-transcript', event)">copy</button>
         </div>
 
+        <!-- Diarize result (speaker blocks) -->
+        <div class="diarize-wrap" id="diarize-result" style="display:none"></div>
+
         <div class="btn-row">
-          <button class="btn-primary blue" id="transcribe-btn" onclick="transcribeFile()" disabled>
+          <button class="btn-primary blue" id="transcribe-btn" onclick="runUpload()" disabled>
             Transcribe
           </button>
           <button class="btn-ghost" onclick="clearUpload()">clear</button>
@@ -680,19 +770,19 @@
         <div class="footer-section-label">Contact</div>
 
         <!-- ↓ Replace with your name -->
-        <a class="footer-link" href="https://nattkorat.github.io/" target="_blank">
+        <a class="footer-link" href="#">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
           </svg>
-          Natt KORAT
+          Your Name
         </a>
 
         <!-- ↓ Replace with your email -->
-        <a class="footer-link" href="mailto:natt.korat@cadt.edu.kh">
+        <a class="footer-link" href="mailto:your@email.com">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
           </svg>
-          natt.korat@cadt.edu.kh
+          your@email.com
         </a>
       </div>
 
@@ -701,7 +791,7 @@
         <div class="footer-section-label">Links</div>
 
         <!-- ↓ Replace href with your GitHub URL -->
-        <a class="footer-link" href="https://github.com/nattKorat" target="_blank" rel="noopener">
+        <a class="footer-link" href="https://github.com/yourhandle" target="_blank" rel="noopener">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
           </svg>
@@ -709,11 +799,19 @@
         </a>
 
         <!-- ↓ Replace href with your LinkedIn URL -->
-        <a class="footer-link" href="https://www.linkedin.com/in/natt-korat-a242641ba/" target="_blank" rel="noopener">
+        <a class="footer-link" href="https://linkedin.com/in/yourhandle" target="_blank" rel="noopener">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/>
           </svg>
           LinkedIn
+        </a>
+
+        <!-- ↓ Optional: add/remove more social links as needed -->
+        <a class="footer-link" href="https://twitter.com/yourhandle" target="_blank" rel="noopener">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+          X / Twitter
         </a>
       </div>
 
@@ -723,7 +821,7 @@
     <div class="footer-bottom">
       <!-- ↓ Update org name and year as needed -->
       <span>© 2025 CADT · Cambodia Academy of Digital Technology</span>
-      <span>{{MODEL_NAME}} Demo</span>
+      <span>Khmer ASR Research Demo</span>
     </div>
   </footer>
 
@@ -787,6 +885,14 @@ function toggleTheme() {
     document.getElementById('badge-mode-txt').textContent =
       `${data.model_mode ?? ''} · ${data.sample_rate ?? ''}Hz`;
     modeEl.style.display = 'inline-flex';
+
+    // LM badge — only show when LM is actually loaded
+    if (data.lm_enabled) {
+      const lmBadge = document.createElement('span');
+      lmBadge.className = 'nav-badge';
+      lmBadge.innerHTML = '<span class="nav-badge-dot" style="background:#fbbf24;box-shadow:0 0 6px #fbbf24"></span>LM';
+      document.getElementById('badge-mode').insertAdjacentElement('afterend', lmBadge);
+    }
   } catch { /* server not ready */ }
 })();
 
@@ -910,11 +1016,7 @@ function copyText(id, evt) {
 function clearLive() {
   clearLiveDOM();
 }
-function clearUpload() {
-  document.getElementById('rest-transcript').textContent = '';
-  document.getElementById('rest-placeholder').style.display = '';
-  setRestStatus('', 'idle — select a file to transcribe');
-}
+// clearUpload defined below in FILE UPLOAD section
 
 // ╔══════════════════════════════════════════════════════════════════╗
 // ║  PCM CONVERSION                                                  ║
@@ -1144,13 +1246,30 @@ function drawWaveform(peaks, progress) {
   const gap     = (W - barW * peaks.length) / (peaks.length + 1);
 
   peaks.forEach((amp, i) => {
-    const x      = gap + i * (barW + gap);
-    const barH   = Math.max(2, amp * (H * 0.85));
-    const played = i / peaks.length < progress;
-    ctx.fillStyle = played ? clrPlay : clrRest;
+    const x        = gap + i * (barW + gap);
+    const barH     = Math.max(2, amp * (H * 0.85));
+    const barTime  = (i / peaks.length) * (audioDuration || 1);
+    const played   = i / peaks.length < progress;
+
+    // Find if this bar falls within a diarized speaker segment
+    let segColor = null;
+    if (diarizeSegments.length && audioDuration > 0) {
+      const seg = diarizeSegments.find(s => barTime >= s.start && barTime < s.end);
+      if (seg) {
+        const ci = speakerColorMap[seg.speaker] ?? 0;
+        segColor = SPEAKER_COLORS[ci].color;
+      }
+    }
+
+    ctx.fillStyle = segColor
+      ? (played ? segColor : segColor + '55')  // full colour played, faded unplayed
+      : (played ? clrPlay : clrRest);
+
+    ctx.globalAlpha = played ? 1 : (segColor ? 0.55 : 0.7);
     ctx.beginPath();
     ctx.roundRect(x, midY - barH / 2, barW, barH, 1);
     ctx.fill();
+    ctx.globalAlpha = 1;
   });
 }
 
@@ -1163,6 +1282,7 @@ function syncPlayer() {
   document.getElementById('player-time').textContent =
     fmtDur(audioEl.currentTime) + ' / ' + fmtDur(audioEl.duration || 0);
   drawWaveform(waveformPeaks, progress);
+  highlightActiveSpeaker(audioEl.currentTime);
   if (!audioEl.paused) playerRaf = requestAnimationFrame(syncPlayer);
 }
 
@@ -1213,17 +1333,69 @@ window.addEventListener('resize', () => {
   }
 });
 
-// ── Transcribe via REST ───────────────────────────────────────────────────────
-async function transcribeFile() {
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  UPLOAD MODE + DIARIZATION                                       ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+// Speaker colour palette — matches CSS :root vars
+const SPEAKER_COLORS = [
+  { color: '#00e5a0', bg: 'rgba(0,229,160,.08)'   },  // spk0 green
+  { color: '#00b3ff', bg: 'rgba(0,179,255,.08)'   },  // spk1 blue
+  { color: '#ff7b54', bg: 'rgba(255,123,84,.08)'  },  // spk2 orange
+  { color: '#a78bfa', bg: 'rgba(167,139,250,.08)' },  // spk3 purple
+  { color: '#fbbf24', bg: 'rgba(251,191,36,.08)'  },  // spk4 yellow
+  { color: '#f472b6', bg: 'rgba(244,114,182,.08)' },  // spk5 pink
+  { color: '#34d399', bg: 'rgba(52,211,153,.08)'  },  // spk6 teal
+  { color: '#60a5fa', bg: 'rgba(96,165,250,.08)'  },  // spk7 sky
+];
+
+let uploadMode      = 'asr';        // 'asr' | 'diarize'
+let diarizeSegments = [];           // [{speaker,start,end,text}, ...]
+let speakerColorMap = {};           // speakerID → SPEAKER_COLORS index
+let audioDuration   = 0;
+
+// ── Mode toggle ───────────────────────────────────────────────────────────────
+function setMode(mode) {
+  uploadMode = mode;
+  document.getElementById('mode-asr').classList.toggle('active', mode === 'asr');
+  document.getElementById('mode-diarize').classList.toggle('active', mode === 'diarize');
+  document.getElementById('transcribe-btn').textContent =
+    mode === 'asr' ? 'Transcribe' : 'Diarize';
+}
+
+// Hide diarize button if server has it disabled
+(async () => {
+  try {
+    const r = await fetch('/api/health');
+    const d = await r.json();
+    if (!d.diarization_enabled) {
+      document.getElementById('mode-diarize').style.display = 'none';
+    }
+  } catch {}
+})();
+
+// ── Unified run button ────────────────────────────────────────────────────────
+function runUpload() {
+  if (uploadMode === 'diarize') runDiarize();
+  else runTranscribe();
+}
+
+// ── Transcribe (ASR only) ─────────────────────────────────────────────────────
+async function runTranscribe() {
   if (!selectedFile) return;
   const btn = document.getElementById('transcribe-btn');
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span>Transcribing…';
   setRestStatus('', 'sending…');
+
+  // Show ASR result area, hide diarize area
+  document.getElementById('asr-result-wrap').style.display = '';
+  document.getElementById('diarize-result').style.display  = 'none';
+
   const form = new FormData();
   form.append('file', selectedFile);
   try {
-    const res  = await fetch(REST_URL, { method: 'POST', body: form });
+    const res  = await fetch(`${location.origin}/api/transcribe`, { method: 'POST', body: form });
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || res.statusText);
     document.getElementById('rest-transcript').textContent = data.transcript;
@@ -1237,19 +1409,118 @@ async function transcribeFile() {
   }
 }
 
+// ── Diarize ───────────────────────────────────────────────────────────────────
+async function runDiarize() {
+  if (!selectedFile) return;
+  const btn = document.getElementById('transcribe-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span>Diarizing…';
+  setRestStatus('', 'running diarization — this may take a moment…');
+
+  // Show diarize area, hide plain ASR area
+  document.getElementById('asr-result-wrap').style.display = 'none';
+  document.getElementById('diarize-result').style.display  = 'flex';
+  document.getElementById('diarize-result').innerHTML      = '';
+
+  const form = new FormData();
+  form.append('file', selectedFile);
+  try {
+    const res  = await fetch(`${location.origin}/api/diarize`, { method: 'POST', body: form });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+
+    diarizeSegments = data.segments;
+    audioDuration   = data.duration_sec;
+
+    // Assign colours to speakers deterministically
+    speakerColorMap = {};
+    let colorIdx = 0;
+    diarizeSegments.forEach(seg => {
+      if (!(seg.speaker in speakerColorMap)) {
+        speakerColorMap[seg.speaker] = colorIdx++ % SPEAKER_COLORS.length;
+      }
+    });
+
+    renderSpeakerBlocks(diarizeSegments);
+    drawWaveform(waveformPeaks, audioEl ? audioEl.currentTime / (audioEl.duration || 1) : 0);
+    setRestStatus('success',
+      `done · ${data.num_speakers} speaker(s) · ${data.segments.length} segment(s) · ${data.duration_sec}s`);
+  } catch (err) {
+    setRestStatus('', 'error: ' + err.message);
+    document.getElementById('asr-result-wrap').style.display = '';
+    document.getElementById('diarize-result').style.display  = 'none';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Diarize';
+  }
+}
+
+// ── Render speaker blocks ─────────────────────────────────────────────────────
+function renderSpeakerBlocks(segments) {
+  const container = document.getElementById('diarize-result');
+  container.innerHTML = '';
+  segments.forEach((seg, i) => {
+    const ci    = speakerColorMap[seg.speaker] ?? 0;
+    const { color, bg } = SPEAKER_COLORS[ci];
+    const block = document.createElement('div');
+    block.className  = 'spk-block';
+    block.id         = `spk-block-${i}`;
+    block.style.setProperty('--spk-color', color);
+    block.style.setProperty('--spk-bg',    bg);
+    block.innerHTML  = `
+      <div class="spk-header">
+        <span class="spk-dot"></span>
+        <span class="spk-label">${esc(seg.speaker)}</span>
+        <span class="spk-time">${fmtDur(seg.start)} → ${fmtDur(seg.end)}</span>
+      </div>
+      <div class="spk-text">${esc(seg.text)}</div>`;
+    // Click to seek audio to this segment
+    block.addEventListener('click', () => {
+      if (audioEl && audioEl.duration) {
+        audioEl.currentTime = seg.start;
+        syncPlayer();
+        if (audioEl.paused) togglePlay();
+      }
+    });
+    container.appendChild(block);
+  });
+}
+
+// ── Highlight active speaker block during playback ────────────────────────────
+function highlightActiveSpeaker(currentTime) {
+  if (!diarizeSegments.length) return;
+  diarizeSegments.forEach((seg, i) => {
+    const block = document.getElementById(`spk-block-${i}`);
+    if (!block) return;
+    const active = currentTime >= seg.start && currentTime < seg.end;
+    block.classList.toggle('playing', active);
+    block.classList.toggle('dimmed',  !active && diarizeSegments.some(
+      (s, j) => j !== i && audioEl.currentTime >= s.start && audioEl.currentTime < s.end
+    ));
+    if (active) block.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
+}
+
 // ── Clear upload panel ────────────────────────────────────────────────────────
 function clearUpload() {
   if (audioEl) { audioEl.pause(); audioEl.src = ''; audioEl = null; }
   cancelAnimationFrame(playerRaf);
-  waveformPeaks = [];
-  selectedFile  = null;
-  document.getElementById('audio-player').style.display   = 'none';
-  document.getElementById('file-info').style.display      = 'none';
-  document.getElementById('file-input').value             = '';
-  document.getElementById('rest-transcript').textContent  = '';
-  document.getElementById('rest-placeholder').style.display = '';
+  waveformPeaks   = [];
+  diarizeSegments = [];
+  speakerColorMap = {};
+  selectedFile    = null;
+  audioDuration   = 0;
+
+  document.getElementById('audio-player').style.display       = 'none';
+  document.getElementById('file-info').style.display          = 'none';
+  document.getElementById('file-input').value                 = '';
+  document.getElementById('rest-transcript').textContent      = '';
+  document.getElementById('rest-placeholder').style.display   = '';
+  document.getElementById('asr-result-wrap').style.display    = '';
+  document.getElementById('diarize-result').style.display     = 'none';
+  document.getElementById('diarize-result').innerHTML         = '';
   document.getElementById('transcribe-btn').disabled = true;
-  setRestStatus('', 'idle — select a file to transcribe');
+  setRestStatus('', 'idle — select a file to begin');
 }
 </script>
 </body>
