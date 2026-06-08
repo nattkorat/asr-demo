@@ -12,8 +12,9 @@ import logging
 import mimetypes
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import JSONResponse
+from pathlib import Path
 
 from backend.core.config import settings
 from backend.services.asr import get_asr_service
@@ -69,13 +70,14 @@ async def _read_audio(file: UploadFile) -> tuple[bytes, str | None]:
 
 @router.get("/health")
 async def health():
+    asr = get_asr_service()
     return {
         "status":               "ok",
         "model_mode":           settings.MODEL_MODE,
-        "device":               str(get_asr_service().device),
+        "device":               str(asr.device),
         "sample_rate":          settings.SAMPLE_RATE,
         "diarization_enabled":  settings.DIARIZATION_ENABLED,
-        "lm_enabled":           bool(settings.LM_DIR),
+        "lm_enabled":           asr.use_lm,   # true only if LM actually loaded OK
     }
 
 
@@ -106,7 +108,7 @@ async def diarize(file: UploadFile = File(...)):
     audio_bytes, fmt = await _read_audio(file)
     logger.info("POST /diarize  file=%s  size=%d  fmt=%s", file.filename, len(audio_bytes), fmt)
 
-    from ..services.diarization import get_diarization_service
+    from backend.services.diarization import get_diarization_service
     try:
         svc    = get_diarization_service()
         result = svc.run(audio_bytes, src_format=fmt)
@@ -118,3 +120,94 @@ async def diarize(file: UploadFile = File(...)):
 
     result["filename"] = file.filename
     return JSONResponse(result)
+
+
+@router.post("/summarize")
+async def summarize(request: Request):
+    """
+    Summarize a transcript using the configured LLM.
+
+    Body (JSON):
+        {
+          "transcript": "...",          // plain text  OR
+          "segments":   [...],          // diarized segments (preferred)
+          "metadata":   {...}           // optional — echoed in response & report
+        }
+
+    Returns:
+        { summary, key_points, action_items, metadata }
+    """
+    from backend.services.llm import get_llm_service
+
+    body = await request.json()
+    transcript = body.get("transcript")
+    segments   = body.get("segments")
+    metadata   = body.get("metadata", {})
+
+    if not transcript and not segments:
+        raise HTTPException(status_code=400, detail="Provide 'transcript' or 'segments'.")
+
+    try:
+        svc    = get_llm_service()
+        result = svc.summarize(transcript=transcript, segments=segments, metadata=metadata)
+    except (ValueError, FileNotFoundError) as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Summarization error: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Summarization failed: {exc}")
+
+    return JSONResponse(result)
+
+
+@router.post("/report")
+async def generate_report(request: Request):
+    """
+    Generate and download a DOCX report.
+
+    Body (JSON): same as /summarize — include the full summary result
+        {
+          "summary":      "...",
+          "key_points":   [...],
+          "action_items": [...],
+          "metadata":     {...},
+          "transcript":   "..." | null,
+          "segments":     [...] | null
+        }
+
+    Returns:
+        DOCX file as a streaming download.
+    """
+    from fastapi.responses import Response
+    from backend.services.report import get_report_service
+
+    body = await request.json()
+
+    for key in ("summary", "key_points", "action_items"):
+        if key not in body:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Missing required field '{key}'. Run /api/summarize first."
+            )
+
+    try:
+        svc  = get_report_service()
+        docx = svc.generate(
+            summary    = body,
+            transcript = body.get("transcript"),
+            segments   = body.get("segments"),
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))
+    except Exception as exc:
+        logger.exception("Report generation error: %s", exc)
+        raise HTTPException(status_code=500, detail=f"Report failed: {exc}")
+
+    filename = body.get("metadata", {}).get("filename", "transcript")
+    stem     = Path(filename).stem
+    return Response(
+        content     = docx,
+        media_type  = "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        headers     = {"Content-Disposition": f'attachment; filename="{stem}_report.docx"'},
+    )

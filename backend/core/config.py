@@ -33,6 +33,18 @@ class Settings(BaseSettings):
     DIARIZE_MIN_SPEAKERS: int | None = None
     DIARIZE_MAX_SPEAKERS: int | None = None
 
+    # ── LLM / Summarization ──────────────────────────────────────────────────────
+    # Dotted import path to the module containing your LLM wrapper function
+    LLM_MODULE:    str = "backend.module.llm"
+    # Name of the callable inside that module: fn(prompt: str) -> dict
+    LLM_FUNCTION:  str = "summarize"
+    # Prompt template file — edit freely without restarting the server
+    LLM_PROMPT_FILE: str = "./prompts/summarize.txt"
+    
+    # LLM Keys, Add in .env file is recommended
+    GEMINI_KEY: str | None = None # Gemini Key for LLM process (in case using Gemini)
+    OPENAI_API_KEY: str | None = None 
+
     # ── Server ────────────────────────────────────────────────────────────────
     HOST: str = "0.0.0.0"
     PORT: int = 7860

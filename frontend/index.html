@@ -389,6 +389,50 @@
       margin-right: 6px; vertical-align: middle;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+    /* ── Summary panel ──────────────────────────────────────────────────────── */
+    .summary-wrap {
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    .summary-section {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 18px 20px;
+      transition: var(--transition-theme);
+    }
+    .summary-section-label {
+      font-size: 9px; letter-spacing: .15em; text-transform: uppercase;
+      color: var(--accent); margin-bottom: 10px; font-weight: 500;
+    }
+    .summary-text {
+      font-size: 13px; line-height: 1.75; color: var(--text);
+    }
+    .summary-list {
+      list-style: none; display: flex; flex-direction: column; gap: 6px;
+    }
+    .summary-list li {
+      display: flex; align-items: flex-start; gap: 8px;
+      font-size: 13px; line-height: 1.6; color: var(--text);
+    }
+    .summary-list li::before {
+      content: ''; flex-shrink: 0;
+      width: 6px; height: 6px; border-radius: 50%;
+      background: var(--accent); margin-top: 7px;
+    }
+    .summary-list.actions li::before { background: var(--accent2); }
+    .summary-empty {
+      font-size: 12px; color: var(--muted); font-style: italic;
+    }
+    .export-bar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 14px 18px;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+    }
+    .export-label {
+      font-size: 11px; color: var(--muted); letter-spacing: .04em; flex: 1;
+    }
     /* ── Mode toggle ────────────────────────────────────────────────────────── */
     .mode-toggle {
       display: flex; gap: 4px;
@@ -740,6 +784,42 @@
           </button>
           <button class="btn-ghost" onclick="clearUpload()">clear</button>
         </div>
+
+        <!-- Summarize button — appears after a result is ready -->
+        <div id="summarize-bar" style="display:none">
+          <div class="btn-row">
+            <button class="btn-primary" id="summarize-btn" onclick="runSummarize()"
+                    style="background:#a78bfa">✦ Summarize</button>
+            <span style="font-size:11px;color:var(--muted);letter-spacing:.04em">
+              Generate summary + key points + action items
+            </span>
+          </div>
+        </div>
+
+        <!-- Summary result panel -->
+        <div class="summary-wrap" id="summary-wrap" style="display:none">
+          <div class="summary-section">
+            <div class="summary-section-label">Summary</div>
+            <div class="summary-text" id="sum-summary">—</div>
+          </div>
+          <div class="summary-section">
+            <div class="summary-section-label">Key Points</div>
+            <ul class="summary-list" id="sum-keypoints"></ul>
+          </div>
+          <div class="summary-section">
+            <div class="summary-section-label">Action Items</div>
+            <ul class="summary-list actions" id="sum-actions"></ul>
+          </div>
+          <!-- Export bar -->
+          <div class="export-bar">
+            <span class="export-label">Export as Word document (.docx)</span>
+            <button class="btn-primary" id="export-btn" onclick="exportReport()"
+                    style="background:#fbbf24;color:#000;padding:10px 24px">
+              ↓ Download Report
+            </button>
+          </div>
+        </div>
+
       </div>
 
     </div><!-- /card -->
@@ -770,19 +850,19 @@
         <div class="footer-section-label">Contact</div>
 
         <!-- ↓ Replace with your name -->
-        <a class="footer-link" href="https://nattkorat.github.io/">
+        <a class="footer-link" href="#">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
           </svg>
-          Natt KORAT
+          Your Name
         </a>
 
         <!-- ↓ Replace with your email -->
-        <a class="footer-link" href="mailto:natt.korat@cadt.edu.kh">
+        <a class="footer-link" href="mailto:your@email.com">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/>
           </svg>
-          natt.korat@cadt.edu.kh
+          your@email.com
         </a>
       </div>
 
@@ -791,11 +871,27 @@
         <div class="footer-section-label">Links</div>
 
         <!-- ↓ Replace href with your GitHub URL -->
-        <a class="footer-link" href="https://github.com/nattKorat" target="_blank" rel="noopener">
+        <a class="footer-link" href="https://github.com/yourhandle" target="_blank" rel="noopener">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
             <path d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0 1 12 6.844a9.59 9.59 0 0 1 2.504.337c1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0 0 22 12.017C22 6.484 17.522 2 12 2z"/>
           </svg>
           GitHub
+        </a>
+
+        <!-- ↓ Replace href with your LinkedIn URL -->
+        <a class="footer-link" href="https://linkedin.com/in/yourhandle" target="_blank" rel="noopener">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M16 8a6 6 0 0 1 6 6v7h-4v-7a2 2 0 0 0-2-2 2 2 0 0 0-2 2v7h-4v-7a6 6 0 0 1 6-6zM2 9h4v12H2z"/><circle cx="4" cy="4" r="2"/>
+          </svg>
+          LinkedIn
+        </a>
+
+        <!-- ↓ Optional: add/remove more social links as needed -->
+        <a class="footer-link" href="https://twitter.com/yourhandle" target="_blank" rel="noopener">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+          X / Twitter
         </a>
       </div>
 
@@ -804,7 +900,7 @@
     <!-- Bottom bar -->
     <div class="footer-bottom">
       <!-- ↓ Update org name and year as needed -->
-      <span>© 2026 CADT · Cambodia Academy of Digital Technology</span>
+      <span>© 2025 CADT · Cambodia Academy of Digital Technology</span>
       <span>Khmer ASR Research Demo</span>
     </div>
   </footer>
@@ -1385,6 +1481,7 @@ async function runTranscribe() {
     document.getElementById('rest-transcript').textContent = data.transcript;
     document.getElementById('rest-placeholder').style.display = 'none';
     setRestStatus('success', `done · ${data.duration_sec}s audio`);
+    showSummarizeBar();
   } catch (err) {
     setRestStatus('', 'error: ' + err.message);
   } finally {
@@ -1429,6 +1526,7 @@ async function runDiarize() {
     drawWaveform(waveformPeaks, audioEl ? audioEl.currentTime / (audioEl.duration || 1) : 0);
     setRestStatus('success',
       `done · ${data.num_speakers} speaker(s) · ${data.segments.length} segment(s) · ${data.duration_sec}s`);
+    showSummarizeBar();
   } catch (err) {
     setRestStatus('', 'error: ' + err.message);
     document.getElementById('asr-result-wrap').style.display = '';
@@ -1504,7 +1602,135 @@ function clearUpload() {
   document.getElementById('diarize-result').style.display     = 'none';
   document.getElementById('diarize-result').innerHTML         = '';
   document.getElementById('transcribe-btn').disabled = true;
+  document.getElementById('summarize-bar').style.display  = 'none';
+  document.getElementById('summary-wrap').style.display   = 'none';
+  _lastSummary = null; _lastTranscript = null; _lastSegments = null; _lastMeta = {};
   setRestStatus('', 'idle — select a file to begin');
+}
+
+// ╔══════════════════════════════════════════════════════════════════╗
+// ║  SUMMARIZE + EXPORT                                              ║
+// ╚══════════════════════════════════════════════════════════════════╝
+
+// Called by runTranscribe / runDiarize after a result lands
+function showSummarizeBar() {
+  document.getElementById('summarize-bar').style.display = '';
+}
+
+// State kept for the export step
+let _lastSummary    = null;
+let _lastTranscript = null;
+let _lastSegments   = null;
+let _lastMeta       = {};
+
+async function runSummarize() {
+  const btn = document.getElementById('summarize-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="border-top-color:#000"></span>Summarizing…';
+
+  // Build payload from whatever result is currently showing
+  const isAsr     = uploadMode === 'asr';
+  const transcript = isAsr
+    ? document.getElementById('rest-transcript').textContent.trim() || null
+    : null;
+  const segments   = (!isAsr && diarizeSegments.length) ? diarizeSegments : null;
+  const metadata   = {
+    filename:     selectedFile?.name || null,
+    duration_sec: audioEl?.duration  || null,
+    num_speakers: diarizeSegments.length ? Object.keys(speakerColorMap).length : null,
+  };
+
+  try {
+    const res  = await fetch(`${location.origin}/api/summarize`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ transcript, segments, metadata }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.detail || res.statusText);
+
+    _lastSummary    = data;
+    _lastTranscript = transcript;
+    _lastSegments   = segments;
+    _lastMeta       = metadata;
+
+    renderSummary(data);
+  } catch (err) {
+    setRestStatus('', 'summarize error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '✦ Summarize';
+  }
+}
+
+function renderSummary(data) {
+  document.getElementById('sum-summary').textContent = data.summary || '—';
+
+  const kpEl = document.getElementById('sum-keypoints');
+  kpEl.innerHTML = '';
+  if (data.key_points?.length) {
+    data.key_points.forEach(pt => {
+      const li = document.createElement('li');
+      li.textContent = pt;
+      kpEl.appendChild(li);
+    });
+  } else {
+    kpEl.innerHTML = '<span class="summary-empty">None identified.</span>';
+  }
+
+  const aiEl = document.getElementById('sum-actions');
+  aiEl.innerHTML = '';
+  if (data.action_items?.length) {
+    data.action_items.forEach(ai => {
+      const li = document.createElement('li');
+      li.textContent = ai;
+      aiEl.appendChild(li);
+    });
+  } else {
+    aiEl.innerHTML = '<span class="summary-empty">None identified.</span>';
+  }
+
+  document.getElementById('summary-wrap').style.display = 'flex';
+}
+
+async function exportReport() {
+  if (!_lastSummary) return;
+  const btn = document.getElementById('export-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="border-top-color:#000"></span>Building…';
+
+  try {
+    const payload = {
+      ..._lastSummary,
+      transcript: _lastTranscript,
+      segments:   _lastSegments,
+      metadata:   _lastMeta,
+    };
+    const res = await fetch(`${location.origin}/api/report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || res.statusText);
+    }
+    // Trigger browser download
+    const blob     = await res.blob();
+    const url      = URL.createObjectURL(blob);
+    const a        = document.createElement('a');
+    a.href         = url;
+    a.download     = (selectedFile?.name?.replace(/\.[^.]+$/, '') || 'transcript') + '_report.docx';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    setRestStatus('', 'export error: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '↓ Download Report';
+  }
 }
 </script>
 </body>

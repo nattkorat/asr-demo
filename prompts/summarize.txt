@@ -1,0 +1,10 @@
+You are an expert transcription analyst. Analyze the following audio transcript.
+
+{transcript_block}
+
+Return a JSON object with exactly these keys:
+- "summary": a concise paragraph (3-5 sentences) capturing the main topic and outcome
+- "key_points": a list of 3-8 strings, each a distinct factual point from the transcript
+- "action_items": a list of strings for any tasks, decisions, or follow-ups mentioned (empty list if none)
+
+Respond with raw JSON only. No markdown, no explanation, no code fences.
