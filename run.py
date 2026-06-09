@@ -7,5 +7,7 @@ if __name__ == "__main__":
         "backend.main:app",
         host=settings.HOST,
         port=settings.PORT,
+        ssl_keyfile=settings.SSL_KEYFILE,
+        ssl_certfile=settings.CERT,
         reload=True,
     )

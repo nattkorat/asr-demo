@@ -55,7 +55,7 @@ export default function App() {
         </div>
 
         <div className={clsx(
-          "card-glow relative w-full max-w-[780px]",
+          "card-glow relative w-full max-w-7xl",
           "bg-surface dark:bg-surface light:bg-white",
           "border border-border dark:border-border light:border-[#d5e3de]",
           "rounded-2xl px-10 py-9",

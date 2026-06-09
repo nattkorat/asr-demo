@@ -8,7 +8,7 @@ function fmtTs(s) {
 export function DiarizeResult({ segments, colorMap, currentTime, onSeek }) {
   if (!segments?.length) return (
     <div className="bg-bg dark:bg-bg light:bg-bg/light border border-border rounded-xl p-5 min-h-[140px] flex items-center justify-center light:bg-[#f4f7f6] light:text-[#1a2e28]">
-      <span className="text-[11px] text-muted tracking-wide">Diarization result will appear here…</span>
+      <span className="text-[11px] text-muted tracking-wide light:bg-[#f4f7f6] light:text-[#1a2e28]">Diarization result will appear here…</span>
     </div>
   );
 
@@ -41,7 +41,7 @@ export function DiarizeResult({ segments, colorMap, currentTime, onSeek }) {
                 {fmtTs(seg.start)} → {fmtTs(seg.end)}
               </span>
             </div>
-            <p className="font-khmer text-[16px] leading-[1.8] text-tx dark:text-tx light:text-tx/light pl-4">
+            <p className="font-khmer text-[16px] leading-[1.8] text-tx dark:text-tx light:text-tx/light pl-4 light:bg-[#f4f7f6] light:text-[#1a2e28]">
               {seg.text}
             </p>
           </div>

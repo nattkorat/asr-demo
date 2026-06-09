@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react";
 import { Mic, Square } from "lucide-react";
 import { useWebSocket } from "../../hooks/useWebSocket";
 import { LiveTranscript } from "../transcript/LiveTranscript";
+import { WS_URL } from "../../services/api";
 import clsx from "clsx";
 
 const SAMPLE_RATE = 16000;
@@ -20,7 +21,7 @@ function float32ToPCM16(f32) {
 
 export function LiveTab() {
   const [recording,  setRecording]  = useState(false);
-  const [statusDot,  setStatusDot]  = useState("");      // "" | "recording" | "connected"
+  const [statusDot,  setStatusDot]  = useState("");
   const [statusMsg,  setStatusMsg]  = useState("Press record to begin");
   const [elapsed,    setElapsed]    = useState(0);
   const [barHeights, setBarHeights] = useState(Array(NUM_BARS).fill(4));
@@ -40,8 +41,8 @@ export function LiveTab() {
   const teardownAudio = useCallback(() => {
     clearInterval(timerRef.current);
     cancelAnimationFrame(animRef.current);
-    processorRef.current?.disconnect();   processorRef.current  = null;
-    audioCtxRef.current?.close();         audioCtxRef.current   = null;
+    processorRef.current?.disconnect();  processorRef.current = null;
+    audioCtxRef.current?.close();        audioCtxRef.current  = null;
     mediaStreamRef.current?.getTracks().forEach(t => t.stop());
     mediaStreamRef.current = null;
     setBarHeights(Array(NUM_BARS).fill(4));
@@ -49,17 +50,21 @@ export function LiveTab() {
   }, []);
 
   const { openWS, closeWS, sendBinary } = useWebSocket({
-    onPartial: (t)     => transcriptRef.current?.setInterim(t),
-    onFinal:   (t)     => { if (t) transcriptRef.current?.commit(t); },
+    onPartial: (t) => transcriptRef.current?.setInterim(t),
+    onFinal:   (t) => { if (t) transcriptRef.current?.commit(t); },
     onStatus:  handleStatus,
-    onClose:   () => {
+    onClose:   async () => {
+      // ← KEY CHANGE: stop MediaRecorder → POST audio → get final transcript
+      setStatusMsg("finalising…");
+      await transcriptRef.current?.stopRecording();
+
       teardownAudio();
       transcriptRef.current?.setInterim("");
       setStatusMsg("Recording stopped");
     },
   });
 
-  // ── Waveform animation ──────────────────────────────────────────────────────
+  // ── Waveform animation ─────────────────────────────────────────────────────
   const animWave = useCallback(() => {
     if (!analyserRef.current) return;
     const data = new Uint8Array(analyserRef.current.frequencyBinCount);
@@ -71,15 +76,16 @@ export function LiveTab() {
     animRef.current = requestAnimationFrame(animWave);
   }, []);
 
-  // ── Start recording ─────────────────────────────────────────────────────────
+  // ── Start recording ────────────────────────────────────────────────────────
   const start = useCallback(async () => {
     try {
       mediaStreamRef.current = await navigator.mediaDevices.getUserMedia({ audio: true });
     } catch { handleStatus("", "mic access denied"); return; }
 
-    audioCtxRef.current  = new AudioContext({ sampleRate: SAMPLE_RATE });
-    analyserRef.current  = audioCtxRef.current.createAnalyser();
+    audioCtxRef.current = new AudioContext({ sampleRate: SAMPLE_RATE });
+    analyserRef.current = audioCtxRef.current.createAnalyser();
     analyserRef.current.fftSize = 256;
+
     const src = audioCtxRef.current.createMediaStreamSource(mediaStreamRef.current);
     src.connect(analyserRef.current);
 
@@ -92,28 +98,31 @@ export function LiveTab() {
       sendBinary(float32ToPCM16(e.inputBuffer.getChannelData(0)));
     };
 
-    openWS();
+    openWS(WS_URL());
+
+    // ← KEY CHANGE: start buffering audio for the final ASR call
+    transcriptRef.current?.clear();
+    transcriptRef.current?.startRecording(mediaStreamRef.current);
+
     setRecording(true);
     setStatusDot("recording");
     animWave();
-
     setElapsed(0);
     timerRef.current = setInterval(() => setElapsed(s => s + 1), 1000);
   }, [openWS, sendBinary, animWave, handleStatus]);
 
-  // ── Stop recording ──────────────────────────────────────────────────────────
+  // ── Stop recording ─────────────────────────────────────────────────────────
   const stop = useCallback(() => {
-    setStatusMsg("finalising…");
-    // Stop sending chunks immediately
-    if (processorRef.current) {
-      processorRef.current.onaudioprocess = null;
-    }
-    closeWS(); // triggers server final decode → onClose → teardownAudio
+    // Stop sending PCM chunks immediately
+    if (processorRef.current) processorRef.current.onaudioprocess = null;
+    // Closing WS → triggers onClose above → stopRecording() → ASR call
+    closeWS();
   }, [closeWS]);
 
   useEffect(() => () => { teardownAudio(); closeWS(); }, []);
 
-  const fmt = (s) => `${String(Math.floor(s/60)).padStart(2,"0")}:${String(s%60).padStart(2,"0")}`;
+  const fmt = (s) =>
+    `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
 
   return (
     <div className="flex flex-col gap-5">
@@ -128,10 +137,10 @@ export function LiveTab() {
       </div>
 
       {/* Waveform */}
-      <div className="bg-bg dark:bg-bg light:bg-bg/light border border-border dark:border-border light:border-border/light rounded-xl h-[66px] flex items-center overflow-hidden px-3 light:bg-[#f4f7f6] light:text-[#1a2e28]">
-        <div className="flex items-center gap-[3px] h-full py-2 w-full ">
+      <div className="bg-bg dark:bg-bg light:bg-bg/light border border-border dark:border-border light:border-border/light rounded-xl h-[66px] flex items-center justify-center overflow-hidden px-3 light:bg-[#f4f7f6] light:text-[#1a2e28]">
+        <div className="flex items-center gap-[3px]">
           {barHeights.map((h, i) => (
-            <div key={i} className={clsx("w-[3px] rounded-sm wf-bar shrink-0",
+            <div key={i} className={clsx("w-[10px] rounded-sm wf-bar shrink-0",
               recording ? "bg-accent opacity-85" : "bg-accent opacity-50"
             )} style={{ height: h + "px" }} />
           ))}
@@ -139,7 +148,10 @@ export function LiveTab() {
       </div>
 
       {/* Transcript */}
-      <LiveTranscript ref={transcriptRef} />
+      <LiveTranscript
+        ref={transcriptRef}
+        // onFinalResult={(text) => console.log("Final ASR:", text)}
+      />
 
       {/* Controls */}
       <div className="flex items-center gap-3">

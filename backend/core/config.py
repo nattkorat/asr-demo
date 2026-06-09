@@ -43,7 +43,11 @@ class Settings(BaseSettings):
     
     # LLM Keys, Add in .env file is recommended
     GEMINI_KEY: str | None = None # Gemini Key for LLM process (in case using Gemini)
-    OPENAI_API_KEY: str | None = None 
+    OPENAI_API_KEY: str | None = None
+    
+    # For cert https
+    SSL_KEYFILE: str | None = None
+    CERT: str | None = None
 
     # ── Server ────────────────────────────────────────────────────────────────
     HOST: str = "0.0.0.0"
