@@ -1,4 +1,4 @@
-You are an expert transcription analyst. Analyze the following audio transcript.
+You are an expert transcription analyst. Analyze the following audio transcript and keep the original language.
 
 {transcript_block}
 
